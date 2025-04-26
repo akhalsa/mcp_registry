@@ -3,7 +3,7 @@ import os
 
 import aws_cdk as cdk
 
-from mcp_registry.mcp_registry_stack import McpRegistryStack
+from infrastructure.mcp_registry_stack import McpRegistryStack
 
 
 app = cdk.App()
