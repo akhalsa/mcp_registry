@@ -7,22 +7,21 @@ from infrastructure.mcp_registry_stack import McpRegistryStack
 
 
 app = cdk.App()
-McpRegistryStack(app, "McpRegistryStack",
-    # If you don't specify 'env', this stack will be environment-agnostic.
-    # Account/Region-dependent features and context lookups will not work,
-    # but a single synthesized template can be deployed anywhere.
 
-    # Uncomment the next line to specialize this stack for the AWS Account
-    # and Region that are implied by the current CLI configuration.
+env_name = app.node.try_get_context("env")
+if env_name is None:
+    raise Exception("Context variable 'env' must be set (e.g., --context env=prod)")
 
-    #env=cdk.Environment(account=os.getenv('CDK_DEFAULT_ACCOUNT'), region=os.getenv('CDK_DEFAULT_REGION')),
+# Accounts and regions
+environments = {
+    "prod": cdk.Environment(account="111122223333", region="us-east-1"),
+    "dev":  cdk.Environment(account="444455556666", region="us-east-1"),
+}
 
-    # Uncomment the next line if you know exactly what Account and Region you
-    # want to deploy the stack to. */
+if env_name not in environments:
+    raise Exception(f"Unknown environment: {env_name}")
 
-    #env=cdk.Environment(account='123456789012', region='us-east-1'),
-
-    # For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html
-    )
+McpRegistryStack(app, f"McpRegistryStack-{env_name}", env=environments[env_name])
 
 app.synth()
+
