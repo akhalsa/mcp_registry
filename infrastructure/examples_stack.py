@@ -79,9 +79,3 @@ class ExamplesStack(Stack):
             task_definition=task_definition,  # Attach the task definition
             assign_public_ip=True,  # Ensure public IP is assigned to ECS task
         )
-
-        # Output the Client Service DNS (for testing)
-        CfnOutput(self, "ClientServiceDNS",
-            value=f"http://{client_service.load_balancer.load_balancer_dns_name}",
-            description="The DNS name of the client service"
-        )
