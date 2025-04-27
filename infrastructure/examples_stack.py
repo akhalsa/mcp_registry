@@ -67,7 +67,7 @@ class ExamplesStack(Stack):
         task_definition.add_container(
             "ClientContainer",
             image=ecs.ContainerImage.from_asset("./examples/client/"),  # Build from Dockerfile in 'client' folder
-            container_port=80,
+            port_mappings=[ecs.PortMapping(container_port=80)],
             environment={  # Add any necessary environment variables here
             }
         )
