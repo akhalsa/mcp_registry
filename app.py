@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 from infrastructure.mcp_registry_stack import McpRegistryStack
-from infrastructure.examples_server_stack import ExampleMcpServerStack
+from infrastructure.examples_server_stack import ExamplesStack
 # Load environment variables from .env file
 load_dotenv()
 
@@ -34,6 +34,6 @@ if env_name not in environments:
 
 # Create the stack
 McpRegistryStack(app, f"McpRegistryStack-{env_name}", env=environments[env_name])
-ExampleMcpServerStack(app, f"ExampleMcpServerStack-{env_name}", env=environments[env_name])
+ExamplesStack(app, f"ExamplesStack-{env_name}", env=environments[env_name])
 
 app.synth()
