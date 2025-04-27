@@ -56,26 +56,3 @@ class ExamplesStack(Stack):
             value=mcp_service.load_balancer.load_balancer_dns_name,
             description="The DNS name of the load balancer for the Example MCP Server"
         )
-
-        # Create Fargate Task Definition
-        task_definition = ecs.FargateTaskDefinition(self, "ClientTaskDefinition",
-            cpu=256,  # 0.25 vCPU
-            memory_limit_mib=512,  # 512MB RAM
-        )
-
-        # Add container to the task definition
-        task_definition.add_container(
-            "ClientContainer",
-            image=ecs.ContainerImage.from_asset("./examples/client/"),  # Build from Dockerfile in 'client' folder
-            port_mappings=[ecs.PortMapping(container_port=80)],
-            environment={  # Add any necessary environment variables here
-            }
-        )
-
-        # Deploy the Client Service (without Load Balancer)
-        client_service = ecs.FargateService(
-            self, "ExampleMcpClientService",
-            cluster=cluster,
-            task_definition=task_definition,  # Attach the task definition
-            assign_public_ip=True,  # Ensure public IP is assigned to ECS task
-        )
