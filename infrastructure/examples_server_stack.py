@@ -24,7 +24,6 @@ class ExampleMcpServerStack(Stack):
             ]
         )
 
-
         # Create ECS Cluster
         cluster = ecs.Cluster(self, "ExampleServerCluster", vpc=vpc)
 
@@ -39,7 +38,8 @@ class ExampleMcpServerStack(Stack):
                 image=ecs.ContainerImage.from_asset("./examples/server/"),  # Build from local Dockerfile
                 container_port=80,
             ),
-            public_load_balancer=True
+            public_load_balancer=True,
+            assign_public_ip=True  # Ensure public IP is assigned to ECS task
         )
 
         # Output the Load Balancer URL after deploy
