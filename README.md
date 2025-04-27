@@ -56,3 +56,11 @@ command.
  * `cdk docs`        open CDK documentation
 
 Enjoy!
+
+
+
+# Running Example Client
+runs locally to call remote mcp server
+cd project root
+docker build -t mcp-client -f examples/client/Dockerfile .
+docker run -p 8000:80 mcp-example-client
