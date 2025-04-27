@@ -78,10 +78,6 @@ class ExamplesStack(Stack):
             cluster=cluster,
             task_definition=task_definition,  # Attach the task definition
             assign_public_ip=True,  # Ensure public IP is assigned to ECS task
-            runtime_platform=ecs.RuntimePlatform(
-                operating_system_family=ecs.OperatingSystemFamily.LINUX,
-                cpu_architecture=ecs.CpuArchitecture.ARM64  # ARM64
-            )
         )
 
         # Output the Client Service DNS (for testing)
