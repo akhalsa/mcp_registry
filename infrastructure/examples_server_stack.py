@@ -39,7 +39,11 @@ class ExampleMcpServerStack(Stack):
                 container_port=80,
             ),
             public_load_balancer=True,
-            assign_public_ip=True  # Ensure public IP is assigned to ECS task
+            assign_public_ip=True,  # Ensure public IP is assigned to ECS task
+            runtime_platform=ecs.RuntimePlatform(
+                operating_system_family=ecs.OperatingSystemFamily.LINUX,
+                cpu_architecture=ecs.CpuArchitecture.ARM64  # ARM64
+            )
         )
 
         # Output the Load Balancer URL after deploy
