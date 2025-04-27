@@ -11,7 +11,8 @@ load_dotenv()
 app = cdk.App()
 
 # Read which environment to deploy (prod/dev)
-env_name = app.node.try_get_context("env")
+env_name = app.node.try_get_context("env") or os.environ.get("CDK_ENV")
+
 if env_name is None:
     raise Exception("Context variable 'env' must be set (e.g., --context env=prod)")
 
