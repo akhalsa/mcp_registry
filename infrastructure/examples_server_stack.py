@@ -45,6 +45,7 @@ class ExampleMcpServerStack(Stack):
                 cpu_architecture=ecs.CpuArchitecture.ARM64  # ARM64
             )
         )
+        service.target_group.configure_health_check(path='/health')
 
         # Output the Load Balancer URL after deploy
         self.load_balancer_dns_name = service.load_balancer.load_balancer_dns_name
