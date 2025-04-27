@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 from infrastructure.mcp_registry_stack import McpRegistryStack
-from infrastructure.examples_server_stack import ExamplesStack
+from infrastructure.examples_stack import ExamplesStack
 # Load environment variables from .env file
 load_dotenv()
 
