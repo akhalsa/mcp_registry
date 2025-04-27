@@ -1,6 +1,10 @@
 from fastapi import FastAPI
-
+from pydantic import BaseModel
 app = FastAPI()
+
+class CalculateSumArguments(BaseModel):
+    a: float
+    b: float
 
 @app.get("/health")
 async def health_check():
@@ -8,19 +12,13 @@ async def health_check():
 
 @app.get("/tools/list")
 async def list_tools():
+    calculate_sum_input_schema = CalculateSumArguments.model_json_schema()
     return {
         "tools": [
             {
                 "name": "calculate_sum",
                 "description": "Add two numbers together",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "a": { "type": "number" },
-                        "b": { "type": "number" }
-                    },
-                    "required": ["a", "b"]
-                }
+                "inputSchema": calculate_sum_input_schema
             }
         ]
     }
@@ -31,8 +29,8 @@ async def call_tool(request: dict):
     args = request.get("arguments", {})
 
     if tool_name == "calculate_sum":
-        a = args.get("a")
-        b = args.get("b")
-        return {"result": a + b}
+        tool_args = CalculateSumArguments(**args)
+        result = tool_args.a + tool_args.b
+        return {"result": result}
     else:
         return {"error": "Tool not found"}
