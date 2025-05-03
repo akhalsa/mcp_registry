@@ -47,7 +47,7 @@ class McpRegistryStack(Stack):
             memory_limit_mib=1024,
             desired_count=2,
             task_image_options={
-                "image": ecs.ContainerImage.from_asset("./code/app"),  # Build Dockerfile
+                "image": ecs.ContainerImage.from_asset("./code"),  # Build Dockerfile
                 "environment": {
                     "DYNAMODB_TABLE_NAME": servers_table.table_name,
                 },
