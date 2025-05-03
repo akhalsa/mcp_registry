@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import boto3
 import os
-
+from unittest.mock import MagicMock
 from routes import register_server_routes
 
 # Instantiate FastAPI app
@@ -21,10 +21,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Set up shared DynamoDB client
-dynamodb = boto3.resource("dynamodb")  # Make region dynamic if needed
-table_name = os.environ["DYNAMODB_TABLE_NAME"]
-servers_table = dynamodb.Table(table_name)
+
+region = os.environ.get("AWS_REGION", "us-east-2")
+
+# Check if we want to use local DynamoDB
+if os.environ.get("RUN_LOCAL") == "True":
+    print("⚠️ MOCKING DYNAMODB")
+    dynamodb = MagicMock()
+    servers_table = MagicMock()
+else:
+    dynamodb = boto3.resource("dynamodb", region_name=region)
+    table_name = os.environ["DYNAMODB_TABLE_NAME"]
+    servers_table = dynamodb.Table(table_name)
+
+
 
 # Register route handlers, injecting the table dependency
 register_server_routes(app, servers_table)

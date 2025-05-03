@@ -54,6 +54,8 @@ class McpRegistryStack(Stack):
                 container_port=80,
                 environment={
                     "DYNAMODB_TABLE_NAME": servers_table.table_name,
+                    "AWS_REGION": Stack.of(self).region,
+                    "USE_DDB_LOCAL": "False"
                 },
                 log_driver=ecs.LogDrivers.aws_logs(
                     stream_prefix="McpRegistry",
@@ -71,22 +73,5 @@ class McpRegistryStack(Stack):
         servers_table.grant_read_write_data(mcp_registry_service.task_definition.task_role)
         mcp_registry_service.target_group.configure_health_check(path='/health')
 
-        # --- (Optional now, add later) OpenSearch domain for semantic search
-        # opensearch_domain = opensearch.Domain(
-        #     self,
-        #     "McpRegistrySearchDomain",
-        #     version=opensearch.EngineVersion.OPENSEARCH_2_7,
-        #     capacity={
-        #         "data_node_instance_type": "t3.small.search"
-        #     },
-        #     ebs={
-        #         "volume_size": 10
-        #     },
-        #     node_to_node_encryption=True,
-        #     enforce_https=True,
-        #     fine_grained_access_control={
-        #         "master_user_name": "admin"
-        #     },
-        #     removal_policy=RemovalPolicy.DESTROY
-        # )
+        
 
