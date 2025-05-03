@@ -22,7 +22,7 @@ app.add_middleware(
 )
 
 # Set up shared DynamoDB client
-dynamodb = boto3.resource("dynamodb", region_name="us-east-1")  # Make region dynamic if needed
+dynamodb = boto3.resource("dynamodb", region_name="us-east-2")  # Make region dynamic if needed
 table_name = os.environ["DYNAMODB_TABLE_NAME"]
 servers_table = dynamodb.Table(table_name)
 
