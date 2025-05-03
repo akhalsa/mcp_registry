@@ -48,7 +48,7 @@ class McpRegistryStack(Stack):
             desired_count=1,
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
                 image=ecs.ContainerImage.from_asset(
-                    directory="../",              # Full project root
+                    directory="./",              # Full project root
                     file="code/Dockerfile"        # Relative path to Dockerfile
                 ),
                 container_port=80,
