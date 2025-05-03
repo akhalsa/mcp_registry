@@ -40,13 +40,6 @@ class McpRegistryStack(Stack):
         cluster = ecs.Cluster(self, "McpRegistryCluster", vpc=vpc)
 
         # --- ECS Service (Fargate) for MCP Registry API
-        # Updated container image to use project root as context and point to Dockerfile inside `code/`
-        image = AssetImage(
-            path="../",  # Project root as Docker build context
-            file="code/Dockerfile",  # Dockerfile path relative to that context
-            exclude=["infrastructure"]  # Optional: exclude CDK code from the build context
-        )
-        # ECS Fargate Service
         mcp_registry_service = ecs_patterns.ApplicationLoadBalancedFargateService(
             self,
             "McpRegistryFargateService",
@@ -54,18 +47,25 @@ class McpRegistryStack(Stack):
             cpu=512,
             memory_limit_mib=1024,
             desired_count=1,
-            task_image_options={
-                "image": image,
-                "environment": {
+            task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
+                image=ecs.ContainerImage.from_asset(
+                    directory="../",              # Full project root
+                    file="code/Dockerfile"        # Relative path to Dockerfile
+                ),
+                container_port=80,
+                environment={
                     "DYNAMODB_TABLE_NAME": servers_table.table_name,
                 },
-                "log_driver": ecs.LogDriver.aws_logs(stream_prefix="McpRegistry")
-            },
+                log_driver=ecs.LogDrivers.aws_logs(
+                    stream_prefix="McpRegistry",
+                    log_group=logs.LogGroup(self, "McpRegistryLogGroup")
+                )
+            ),
             public_load_balancer=True,
             assign_public_ip=True,
             runtime_platform=ecs.RuntimePlatform(
                 operating_system_family=ecs.OperatingSystemFamily.LINUX,
-                cpu_architecture=ecs.CpuArchitecture.ARM64  # ARM64
+                cpu_architecture=ecs.CpuArchitecture.ARM64
             )
         )
         # Grant ECS Service permissions to DDB + S3
