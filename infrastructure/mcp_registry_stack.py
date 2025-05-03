@@ -7,7 +7,6 @@ from aws_cdk import aws_logs as logs
 from aws_cdk import aws_ecs_patterns as ecs_patterns
 from aws_cdk import aws_opensearchservice as opensearch
 from aws_cdk import aws_s3 as s3
-from aws_cdk.aws_ecr_assets import AssetImage
 from constructs import Construct
 
 class McpRegistryStack(Stack):
