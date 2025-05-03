@@ -47,7 +47,7 @@ class McpRegistryStack(Stack):
             memory_limit_mib=1024,
             desired_count=2,
             task_image_options={
-                "image": ecs.ContainerImage.from_asset("path/to/your/mcp-registry-app"),  # Build Dockerfile
+                "image": ecs.ContainerImage.from_asset("./code/app"),  # Build Dockerfile
                 "environment": {
                     "DYNAMODB_TABLE_NAME": servers_table.table_name,
                 },
@@ -55,7 +55,6 @@ class McpRegistryStack(Stack):
             },
             public_load_balancer=True
         )
-
         # Grant ECS Service permissions to DDB + S3
         servers_table.grant_read_write_data(mcp_registry_service.task_definition.task_role)
 
