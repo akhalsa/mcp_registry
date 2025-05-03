@@ -5,7 +5,9 @@ from datetime import datetime
 class ToolMetadata(BaseModel):
     name: str = Field(..., description="Unique name of the tool")
     description: str = Field(..., description="Brief description of what the tool does")
-    input_schema: Dict = Field(..., description="JSON schema describing the tool's input")
+    input_schema: Dict = Field(..., alias="inputSchema", description="Tool input schema")
+    class Config:
+        allow_population_by_field_name = True  # Allow using input_schema internally
 
 class ResourceMetadata(BaseModel):
     name: str = Field(..., description="Name of the resource")
@@ -28,3 +30,20 @@ class ServerMetadata(BaseModel):
     
     created_at: Optional[datetime] = Field(None, description="Timestamp when server was registered")
     last_heartbeat: Optional[datetime] = Field(None, description="Last time server sent a heartbeat")
+    
+    list_tools_endpoint: Optional[str] = Field(
+        default="/list_tools",
+        description="Path to fetch list of tools"
+    )
+    call_tool_endpoint: Optional[str] = Field(
+        default="/call_tool",
+        description="Path to invoke a tool by name"
+    )
+    call_endpoint_method: Optional[str] = Field(
+        default="POST",
+        description="HTTP method to use with the call endpoint"
+    )
+    list_tools_endpoint_method: Optional[str] = Field(
+        default="POST",
+        description="HTTP method to use for with the list tools endpoint"
+    )
