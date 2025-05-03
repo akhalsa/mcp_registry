@@ -4,14 +4,13 @@ FROM python:3.13-slim-bookworm
 # Set working directory
 WORKDIR /app
 
-# Copy the actual FastAPI app code
-COPY ./app /app
-
+# Copy application code
+COPY code/app/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
+COPY code/app /app
+COPY models /app/models
+ENV PYTHONPATH="/app:$PYTHONPATH"
 
-# Expose port 80
-EXPOSE 80
-
-# Start the FastAPI app with uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
+# Launch FastAPI app with uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

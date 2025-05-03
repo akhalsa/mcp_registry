@@ -39,21 +39,33 @@ class McpRegistryStack(Stack):
         cluster = ecs.Cluster(self, "McpRegistryCluster", vpc=vpc)
 
         # --- ECS Service (Fargate) for MCP Registry API
+        # Updated container image to use project root as context and point to Dockerfile inside `code/`
+        image = ecs.ContainerImage.from_asset(
+            path="../",  # Project root as Docker build context
+            file="code/Dockerfile",  # Dockerfile path relative to that context
+            exclude=["infrastructure"]  # Optional: exclude CDK code from the build context
+        )
+        # ECS Fargate Service
         mcp_registry_service = ecs_patterns.ApplicationLoadBalancedFargateService(
             self,
             "McpRegistryFargateService",
             cluster=cluster,
             cpu=512,
             memory_limit_mib=1024,
-            desired_count=2,
+            desired_count=1,
             task_image_options={
-                "image": ecs.ContainerImage.from_asset("./code"),  # Build Dockerfile
+                "image": image,
                 "environment": {
                     "DYNAMODB_TABLE_NAME": servers_table.table_name,
                 },
                 "log_driver": ecs.LogDriver.aws_logs(stream_prefix="McpRegistry")
             },
-            public_load_balancer=True
+            public_load_balancer=True,
+            assign_public_ip=True,
+            runtime_platform=ecs.RuntimePlatform(
+                operating_system_family=ecs.OperatingSystemFamily.LINUX,
+                cpu_architecture=ecs.CpuArchitecture.ARM64  # ARM64
+            )
         )
         # Grant ECS Service permissions to DDB + S3
         servers_table.grant_read_write_data(mcp_registry_service.task_definition.task_role)

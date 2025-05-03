@@ -1,22 +1,14 @@
-# routes.py
-
 from fastapi import FastAPI, HTTPException
 from models.server_meta_data import ServerMetadata
 from uuid import uuid4
 from datetime import datetime
-import boto3
 import json
 
-# Setup DynamoDB client
-dynamodb = boto3.resource("dynamodb", region_name="us-east-1")  # Adjust if needed
-servers_table = dynamodb.Table("McpServersTable")
-
-def register_server_routes(app: FastAPI):
+def register_server_routes(app: FastAPI, servers_table):
     @app.post("/register_server")
     async def register_server(server: ServerMetadata):
         """Register a new MCP server and store it in DynamoDB."""
         try:
-            # Assign ID if missing
             server_id = server.id or str(uuid4())
             now = datetime.now(datetime.UTC).isoformat()
 
@@ -26,11 +18,7 @@ def register_server_routes(app: FastAPI):
                 "last_heartbeat": now
             })
 
-            # Save to DynamoDB
             servers_table.put_item(Item=json.loads(server_record.json()))
-
-            # TODO: Add semantic indexing in OpenSearch/Chroma here later
-
             return {"server_id": server_id, "status": "registered"}
 
         except Exception as e:
