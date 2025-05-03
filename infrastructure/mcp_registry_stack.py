@@ -69,6 +69,7 @@ class McpRegistryStack(Stack):
         )
         # Grant ECS Service permissions to DDB + S3
         servers_table.grant_read_write_data(mcp_registry_service.task_definition.task_role)
+        mcp_registry_service.target_group.configure_health_check(path='/health')
 
         # --- (Optional now, add later) OpenSearch domain for semantic search
         # opensearch_domain = opensearch.Domain(
