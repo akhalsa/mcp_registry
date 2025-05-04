@@ -79,7 +79,7 @@ async def startup_event():
     sync_chroma_from_dynamodb()
 
 # === Models ===
-class ToolSearchRequest(BaseModel):
+class ServerSearchRequest(BaseModel):
     query: str
 
 # === Routes ===
@@ -94,9 +94,23 @@ async def register_server_endpoint(server_metadata: dict):
     return await register_server(server, servers_table, tools_collection)
 
 @app.post("/search_tools")
-async def search_tools_endpoint(request: ToolSearchRequest):
+async def search_tools_endpoint(request: ServerSearchRequest):
     try:
-        result = tools_collection.query(query_texts=[request.query], n_results=5)
-        return result["metadatas"][0]
+        # Run semantic search on tools and server descriptions
+        result = tools_collection.query(query_texts=[request.query], n_results=10)
+        tool_metadatas = result.get("metadatas", [[]])[0]
+
+        # Get unique server IDs
+        unique_server_ids = {meta["server_id"] for meta in tool_metadatas if "server_id" in meta}
+
+        matched_servers = []
+        for server_id in unique_server_ids:
+            ddb_result = servers_table.get_item(Key={"id": server_id})
+            server_item = ddb_result.get("Item")
+            if server_item:
+                matched_servers.append(ServerMetadata.model_validate(server_item))
+
+        return matched_servers
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Semantic search failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")

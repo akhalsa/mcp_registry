@@ -7,11 +7,13 @@ from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.types import TextContent
 from dotenv import load_dotenv
+from models.server_meta_data import ServerMetadata
 import openai
+import httpx
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam
 load_dotenv()  # Load environment variables from .env
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MCP_SERVER_URL = "http://Exampl-Examp-GTQEZ6l1f3w0-988708398.us-east-2.elb.amazonaws.com"
+MCP_REGISTRY_URL = "http://McpReg-McpRe-ZMg9vwW4XWZI-1842878941.us-east-2.elb.amazonaws.com"
 MCP_LOCAL_URL = "http://host.docker.internal:8000"
 RUN_LOCAL = os.getenv("RUN_LOCAL", "False").lower() == "true"
 
@@ -39,90 +41,14 @@ class LLMClient:
 
         return response.choices[0].message 
     
-class MCPClient:
-    def __init__(self):
+class ChatSession:
+    def __init__(self, api_key: str) -> None:
+        self.llm_client = LLMClient(api_key)
+        self.messages: list[ChatCompletionMessageParam] = []
+        self.mcp_clients: list[MCPClient] = []
         self.session: Optional[ClientSession] = None
         self.exit_stack = AsyncExitStack()
-        self.mcp_url = (MCP_LOCAL_URL if RUN_LOCAL else MCP_SERVER_URL) + "/sse"
-        print(f"RUN_LOCAL: {RUN_LOCAL}")
-        print(f"MCP URL: {self.mcp_url}")
-        self.llm_client = LLMClient(OPENAI_API_KEY)
-        self.messages: list[ChatCompletionMessageParam] = [] 
-        self.available_tools: list[ChatCompletionToolParam] = []
-
-        
-
-    async def connect_to_server(self):
-        """Connect to a remote MCP server via SSE."""
-        read, write = await self.exit_stack.enter_async_context(sse_client(self.mcp_url))
-        self.session = await self.exit_stack.enter_async_context(ClientSession(read, write))
-        await self.session.initialize()
-
-        response = await self.session.list_tools()
-        tools = response.tools
-        print("\nConnected to remote MCP server with tools:", [tool.name for tool in tools])
- 
-        self.available_tools: list[ChatCompletionToolParam] = [
-            {
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description or "",
-                    "parameters": {
-                        **tool.inputSchema,
-                        "additionalProperties": False  # ✅ Required by OpenAI
-                    },
-                },
-            }
-            for tool in tools
-        ]
-        print(self.available_tools) 
-
-    async def process_query(self, query: str) -> str:
-        """Process a query using OpenAI and available MCP tools."""
-        if not self.session:
-            raise RuntimeError("MCP session not initialized")
-
-        # Step 1: Start conversation
-        self.messages.append({"role": "user", "content": query})
-         
-
-        # Step 3: First call to OpenAI (with tool use enabled)
-        ai_message = self.llm_client.get_ai_response(self.messages, self.available_tools, use_tools=True)
-
-        # Step 4: If the LLM wants to use a tool...
-        if ai_message.tool_calls:
-            print(f"Will Call Tool: {ai_message.tool_calls[0].function.name}")
-            tool_call = ai_message.tool_calls[0]  # Assume one tool for now
-            tool_name = tool_call.function.name
-            tool_args = json.loads(tool_call.function.arguments)
-
-            # Step 5: Execute the tool via MCP
-            tool_result = await self.session.call_tool(tool_name, tool_args)
-            # Extract actual content (works if you know it’s always TextContent)
-            if tool_result.content and isinstance(tool_result.content[0], TextContent):
-                tool_result_content = tool_result.content[0].text
-            else:
-                tool_result_content = json.dumps({"result": "unknown"}) 
-            # Step 6: Add tool call + result to conversation
-            self.messages.append({
-                "role": "assistant",
-                "tool_calls": [tool_call.model_dump()]  # Required OpenAI format
-            })
-            self.messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": tool_result_content
-            })
-            print(f"Going back to LLM with:{self.messages}")
-
-            # Step 7: Second call to LLM to interpret the tool result
-            final_response = self.llm_client.get_ai_response(self.messages, self.available_tools, use_tools=False)
-            return final_response.content
-
-        # Step 8: No tool call — return LLM’s original reply
-        return ai_message.content
-
+    
     async def chat_loop(self):
         print("\nMCP SSE Client Started!")
         print("Type your queries or 'quit' to exit.")
@@ -139,16 +65,121 @@ class MCPClient:
             except Exception as e:
                 print(f"\nError: {str(e)}")
 
+    async def process_query(self, query: str) -> str:
+        self.messages.append({"role": "user", "content": query})
+
+        # 🔍 Step 1: Search for best-matching server
+        server: ServerMetadata = await find_best_server_for_query(query)
+
+        # 🔌 Step 2: Connect to the selected MCP server
+        mcp = MCPClient(server.url, server.id)
+        await mcp.setup()  # Ensure tools are loaded and session is connected
+
+        # Store session and tools
+        self.session = mcp.session
+        self.available_tools = mcp.available_tools
+
+        # 🧠 Step 3: Let OpenAI decide if it wants to call a tool
+        ai_message = self.llm_client.get_ai_response(self.messages, self.available_tools, use_tools=True)
+
+        # 🛠 Step 4: Tool call handling
+        if ai_message.tool_calls:
+            tool_call = ai_message.tool_calls[0]  # Assume one tool for now
+            tool_name = tool_call.function.name
+            tool_args = json.loads(tool_call.function.arguments)
+            print(f"Will Call Tool: {tool_name}")
+
+            # 🔧 Step 5: Actually call the tool via MCP
+            tool_result = await self.session.call_tool(tool_name, tool_args)
+
+            if tool_result.content and isinstance(tool_result.content[0], TextContent):
+                tool_result_content = tool_result.content[0].text
+            else:
+                tool_result_content = json.dumps({"result": "unknown"})
+
+            # 🧾 Step 6: Add result to chat history
+            self.messages.append({
+                "role": "assistant",
+                "tool_calls": [tool_call.model_dump()]
+            })
+            self.messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": tool_result_content
+            })
+
+            # 💬 Step 7: Get final LLM response
+            final_response = self.llm_client.get_ai_response(self.messages, self.available_tools, use_tools=False)
+            await mcp.cleanup()
+            return final_response.content
+        await mcp.cleanup()
+        # 💡 Step 8: No tool used
+        return ai_message.content
+    
+class MCPClient:
+    def __init__(self, url: str, id: str):
+        self.url = url
+        self.id = id
+        self.session: Optional[ClientSession] = None
+        self.exit_stack = AsyncExitStack()
+        self.available_tools: list[ChatCompletionToolParam] = []
+
+    async def setup(self):
+        """Connect to MCP server and list tools."""
+        sse_url = self.url.rstrip("/") + "/sse"
+        read, write = await self.exit_stack.enter_async_context(sse_client(sse_url))
+        self.session = await self.exit_stack.enter_async_context(ClientSession(read, write))
+        await self.session.initialize()
+
+        response = await self.session.list_tools()
+        tools = response.tools
+        print(f"Connected to server {self.url} with tools:", [t.name for t in tools])
+        self.available_tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description or "",
+                    "parameters": {
+                        **tool.inputSchema,
+                        "additionalProperties": False
+                    },
+                },
+            }
+            for tool in tools
+        ] 
+
     async def cleanup(self):
         await self.exit_stack.aclose()
 
+    
+async def find_best_server_for_query(query: str) -> ServerMetadata:
+    """Query the MCP registry and return the best matching server metadata."""
+    registry_url = MCP_LOCAL_URL if RUN_LOCAL else MCP_REGISTRY_URL
+    search_url = f"{registry_url}/search_tools"
+
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.post(search_url, json={"query": query})
+        resp.raise_for_status()
+        matches = resp.json()
+
+        if not matches:
+            raise ValueError("No matching MCP servers found for query")
+
+        best_match = matches[0]
+        
+        # Query the registry for full server metadata
+        full_metadata_url = f"{registry_url}/get_server?id={best_match['server_id']}"
+        resp = await client.get(full_metadata_url)
+        resp.raise_for_status()
+        server_dict = resp.json()
+
+        return ServerMetadata.model_validate(server_dict)
+    
 async def main():
-    client = MCPClient()
-    try:
-        await client.connect_to_server()
-        await client.chat_loop()
-    finally:
-        await client.cleanup()
+    chat = ChatSession(OPENAI_API_KEY)
+    await chat.chat_loop()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
