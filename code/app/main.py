@@ -58,7 +58,7 @@ def sync_chroma_from_dynamodb():
     for server in servers:
         for tool in server.get("tools", []):
             tool_id = f"{server['id']}:{tool['name']}"
-            text = f"[{server.name} - {server.description or ''}] - {tool.name} - {tool.description or ''}"
+            text = f"[{server['name']} - {server.get('description', '')}] - {tool['name']} - {tool.get('description', '')}"
             metadata = {
                 "server_id": server["id"],
                 "server_name": server["name"],
