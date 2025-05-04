@@ -36,16 +36,27 @@ class ExamplesStack(Stack):
             memory_limit_mib=512,  # 512MB RAM
             desired_count=1,
             task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
-                image=ecs.ContainerImage.from_asset("./examples/server/"),  # Build from local Dockerfile
+                image=ecs.ContainerImage.from_asset(
+                    directory="./",                        # Root of the project
+                    file="examples/server/Dockerfile"      # Path to Dockerfile from root
+                ),
                 container_port=80,
+                environment={
+                    "RUN_LOCAL": "False"
+                },
+                log_driver=ecs.LogDrivers.aws_logs(
+                    stream_prefix="McpExample",
+                    log_group=logs.LogGroup(self, "McpExampleLogGroup")
+                )
             ),
             public_load_balancer=True,
-            assign_public_ip=True,  # Ensure public IP is assigned to ECS task
+            assign_public_ip=True,
             runtime_platform=ecs.RuntimePlatform(
                 operating_system_family=ecs.OperatingSystemFamily.LINUX,
-                cpu_architecture=ecs.CpuArchitecture.ARM64  # ARM64
+                cpu_architecture=ecs.CpuArchitecture.ARM64
             )
         )
+
         # Configure health check for MCP server
         mcp_service.target_group.configure_health_check(path='/health')
 
