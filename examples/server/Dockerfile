@@ -5,14 +5,15 @@ FROM python:3.13-slim-bookworm
 WORKDIR /app
 
 # Install dependencies
-COPY ./app/requirements.txt /app/requirements.txt
+COPY ./examples/server/app/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
+
 # Copy the actual FastAPI app code
-COPY ./app /app
+COPY ./examples/server/app /app
 
 # Expose port 80
 EXPOSE 80
 
-# Start the FastAPI app with uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
+CMD ["mcp", "run", "main.py"]
+
