@@ -1,9 +1,12 @@
 from fastapi import FastAPI, HTTPException
-from models.server_meta_data import ServerMetadata, ToolMetadata
+from mcp import ClientSession
+from mcp.types import Tool
+from mcp.client.sse import sse_client
+from contextlib import AsyncExitStack
 from uuid import uuid4
 from datetime import datetime, timezone
 import json
-import httpx
+from models.server_meta_data import ServerMetadata
 
 def register_server_routes(app: FastAPI, servers_table):
     
@@ -12,70 +15,47 @@ def register_server_routes(app: FastAPI, servers_table):
         """Register a new MCP server and store it in DynamoDB."""
         try:
             server_id = server.id or str(uuid4())
-            now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(timezone.utc)
+
+            # Normalize URL and extract /sse endpoint
             server_url = server.url.rstrip("/")
-            list_tools_url = f"{server_url}/{server.list_tools_endpoint.lstrip('/')}"
-            call_tool_url = f"{server_url}/{server.call_tool_endpoint.lstrip('/')}"
+            if server_url.endswith("/sse"):
+                server_url_sse = server_url
+                server_url = server_url[:-4]  # remove '/sse'
+            else:
+                server_url_sse = f"{server_url}/sse"
 
-            list_tools_method = "POST"
-            call_tool_method = "POST"
+            print(f"Server URL: {server_url}")
+            print(f"Server URL SSE: {server_url_sse}")
 
-            # Try POST, fallback to GET if needed
-            tool_data = None
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                try:
-                    response = await client.post(list_tools_url)
-                    response.raise_for_status()
-                    tool_data = response.json()
-                except httpx.HTTPStatusError as post_err:
-                    if post_err.response.status_code in {404, 405}:
-                        try:
-                            print(f"POST failed, retrying with GET: {list_tools_url}")
-                            list_tools_method = "GET"
-                            response = await client.get(list_tools_url)
-                            response.raise_for_status()
-                            tool_data = response.json()
-                        except Exception as get_err:
-                            raise HTTPException(status_code=400, detail=f"Both POST and GET failed for {list_tools_url}: {get_err}")
-                    else:
-                        raise HTTPException(status_code=400, detail=f"POST failed for {list_tools_url}: {post_err}")
-                except Exception as err:
-                    raise HTTPException(status_code=400, detail=f"Error connecting to {list_tools_url}: {err}")
+            # Use MCP SDK to open an SSE connection and list tools
+            async with AsyncExitStack() as exit_stack:
+                read, write = await exit_stack.enter_async_context(sse_client(server_url_sse))
+                session = await exit_stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
 
-            # Extract tool list from JSON
-            try:
-                # Try treating tool_data directly as a list
-                parsed_tools = [ToolMetadata.model_validate(tool, from_attributes=False) for tool in raw_tools]
-            except Exception:
-                # Fallback: check if it's a dict with a 'tools' key
-                raw_tools = tool_data.get("tools")
-                if not isinstance(raw_tools, list):
-                    raise HTTPException(status_code=422, detail="Expected 'tools' to be a list in response")
-                try:
-                    parsed_tools = [ToolMetadata.model_validate(tool, from_attributes=False) for tool in raw_tools]
-                except Exception as parse_err:
-                    raise HTTPException(status_code=422, detail=f"Tool data validation failed: {parse_err}")
-                
+                response = await session.list_tools()
+                tools = response.tools  # already list[Tool]
+                print("Connected to remote MCP server with tools:", [tool.name for tool in tools])
 
+                # Validate tool list
+                parsed_tools = [Tool.model_validate(tool) for tool in tools]
 
-            # Build server record
-            server_record = server.copy(update={
-                "id": server_id,
-                "created_at": now,
-                "last_heartbeat": now,
-                "tools": parsed_tools,
-                "list_tools_endpoint_method": list_tools_method,
-                "call_tool_endpoint_method": call_tool_method,
-                "list_tools_endpoint": server.list_tools_endpoint,
-                "call_tool_endpoint": server.call_tool_endpoint
-            })
+                # Save server record
+                server_record = server.copy(update={
+                    "id": server_id,
+                    "created_at": now,
+                    "last_heartbeat": now,
+                    "tools": parsed_tools,
+                    "url": server_url,  # clean base URL
+                })
 
-            servers_table.put_item(Item=json.loads(server_record.json()))
-            return {
-                "server_id": server_id,
-                "status": "registered",
-                "tool_count": len(parsed_tools)
-            }
+                servers_table.put_item(Item=json.loads(server_record.model_dump_json()))
+                return {
+                    "server_id": server_id,
+                    "status": "registered",
+                    "tool_count": len(parsed_tools)
+                }
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))

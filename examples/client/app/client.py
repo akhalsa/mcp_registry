@@ -13,7 +13,7 @@ load_dotenv()  # Load environment variables from .env
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MCP_SERVER_URL = "http://Exampl-Examp-GTQEZ6l1f3w0-988708398.us-east-2.elb.amazonaws.com"
 MCP_LOCAL_URL = "http://host.docker.internal:8000"
-RUN_LOCAL = os.getenv("RUN_LOCAL", "True").lower() == "true"
+RUN_LOCAL = os.getenv("RUN_LOCAL", "False").lower() == "true"
 
 class LLMClient:
     """Manages communication with the LLM provider."""
@@ -44,6 +44,8 @@ class MCPClient:
         self.session: Optional[ClientSession] = None
         self.exit_stack = AsyncExitStack()
         self.mcp_url = (MCP_LOCAL_URL if RUN_LOCAL else MCP_SERVER_URL) + "/sse"
+        print(f"RUN_LOCAL: {RUN_LOCAL}")
+        print(f"MCP URL: {self.mcp_url}")
         self.llm_client = LLMClient(OPENAI_API_KEY)
         self.messages: list[ChatCompletionMessageParam] = [] 
         self.available_tools: list[ChatCompletionToolParam] = []
