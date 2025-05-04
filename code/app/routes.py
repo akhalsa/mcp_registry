@@ -23,6 +23,23 @@ async def embed_text(text: str) -> list[float]:
     )
     return response.data[0].embedding
 
+async def find_best_server_for_query(query: str, servers_table, tools_collection) -> list[ServerMetadata]:
+    result = tools_collection.query(query_texts=[query], n_results=10)
+    print(f"result: {result}")
+    tool_metadatas = result.get("metadatas", [[]])[0]
+
+    # Get unique server IDs
+    unique_server_ids = {meta["server_id"] for meta in tool_metadatas if "server_id" in meta}
+
+    matched_servers = []
+    for server_id in unique_server_ids:
+        ddb_result = servers_table.get_item(Key={"id": server_id})
+        server_item = ddb_result.get("Item")
+        if server_item:
+            matched_servers.append(ServerMetadata.model_validate(server_item))
+
+    return matched_servers
+
 
 async def register_server(server: ServerMetadata, servers_table, tools_collection):
     """Register a new MCP server and store it in DynamoDB."""

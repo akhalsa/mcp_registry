@@ -11,7 +11,7 @@ import openai
 from chromadb.config import Settings
 import chromadb
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
-from routes import register_server
+from routes import register_server, find_best_server_for_query
 from models.server_meta_data import ServerMetadata
 # Load environment variables
 load_dotenv()
@@ -79,8 +79,7 @@ async def startup_event():
     sync_chroma_from_dynamodb()
 
 # === Models ===
-class ServerSearchRequest(BaseModel):
-    query: str
+
 
 # === Routes ===
 
@@ -93,24 +92,13 @@ async def register_server_endpoint(server_metadata: dict):
     server = ServerMetadata.model_validate(server_metadata)
     return await register_server(server, servers_table, tools_collection)
 
-@app.post("/search_tools")
-async def search_tools_endpoint(request: ServerSearchRequest):
+class ServerSearchRequest(BaseModel):
+    query: str
+    
+@app.post("/search_servers")
+async def search_servers_endpoint(request: ServerSearchRequest):
     try:
-        # Run semantic search on tools and server descriptions
-        result = tools_collection.query(query_texts=[request.query], n_results=10)
-        tool_metadatas = result.get("metadatas", [[]])[0]
-
-        # Get unique server IDs
-        unique_server_ids = {meta["server_id"] for meta in tool_metadatas if "server_id" in meta}
-
-        matched_servers = []
-        for server_id in unique_server_ids:
-            ddb_result = servers_table.get_item(Key={"id": server_id})
-            server_item = ddb_result.get("Item")
-            if server_item:
-                matched_servers.append(ServerMetadata.model_validate(server_item))
-
-        return matched_servers
+        return await find_best_server_for_query(request.query, servers_table, tools_collection)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")

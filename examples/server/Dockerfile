@@ -6,6 +6,8 @@ COPY examples/server/app/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY examples/server/app /app
+COPY models /app/models
+ENV PYTHONPATH="/app:$PYTHONPATH"
 
 EXPOSE 80
 

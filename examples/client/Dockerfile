@@ -11,6 +11,8 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # Copy the actual FastAPI app code
 COPY ./examples/client/app /app
 COPY ./.env /app/.env 
+COPY examples/server/app /app
+COPY models /app/models
 
 # Expose port 80
 EXPOSE 80

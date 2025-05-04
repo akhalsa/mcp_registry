@@ -3,6 +3,7 @@ import os
 from typing import Optional
 from contextlib import AsyncExitStack
 import json
+from typing import Dict
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.types import TextContent
@@ -45,9 +46,12 @@ class ChatSession:
     def __init__(self, api_key: str) -> None:
         self.llm_client = LLMClient(api_key)
         self.messages: list[ChatCompletionMessageParam] = []
-        self.mcp_clients: list[MCPClient] = []
-        self.session: Optional[ClientSession] = None
-        self.exit_stack = AsyncExitStack()
+        self.mcp_clients_by_id: Dict[str, MCPClient] = {} 
+        
+
+    async def close_all(self):
+        for mcp in self.mcp_clients_by_id.values():
+            await mcp.cleanup()
     
     async def chat_loop(self):
         print("\nMCP SSE Client Started!")
@@ -67,20 +71,24 @@ class ChatSession:
 
     async def process_query(self, query: str) -> str:
         self.messages.append({"role": "user", "content": query})
-
+        print(f"Searching for best-matching server for query: {query}")
         # 🔍 Step 1: Search for best-matching server
         server: ServerMetadata = await find_best_server_for_query(query)
 
-        # 🔌 Step 2: Connect to the selected MCP server
-        mcp = MCPClient(server.url, server.id)
-        await mcp.setup()  # Ensure tools are loaded and session is connected
+        
+        # 🔄 Step 2: Check client cache
+        if server.id in self.mcp_clients_by_id:
+            print(f"Reusing existing MCPClient for server: {server.id}")
+            mcp = self.mcp_clients_by_id[server.id]
+        else:
+            print(f"Creating new MCPClient for server: {server.id}")
+            mcp = MCPClient(server.url, server.id)
+            await mcp.setup()
+            self.mcp_clients_by_id[server.id] = mcp  # Cache it
 
-        # Store session and tools
-        self.session = mcp.session
-        self.available_tools = mcp.available_tools
 
         # 🧠 Step 3: Let OpenAI decide if it wants to call a tool
-        ai_message = self.llm_client.get_ai_response(self.messages, self.available_tools, use_tools=True)
+        ai_message = self.llm_client.get_ai_response(self.messages, mcp.available_tools, use_tools=True)
 
         # 🛠 Step 4: Tool call handling
         if ai_message.tool_calls:
@@ -90,7 +98,7 @@ class ChatSession:
             print(f"Will Call Tool: {tool_name}")
 
             # 🔧 Step 5: Actually call the tool via MCP
-            tool_result = await self.session.call_tool(tool_name, tool_args)
+            tool_result = await mcp.session.call_tool(tool_name, tool_args)
 
             if tool_result.content and isinstance(tool_result.content[0], TextContent):
                 tool_result_content = tool_result.content[0].text
@@ -109,10 +117,10 @@ class ChatSession:
             })
 
             # 💬 Step 7: Get final LLM response
-            final_response = self.llm_client.get_ai_response(self.messages, self.available_tools, use_tools=False)
-            await mcp.cleanup()
+            final_response = self.llm_client.get_ai_response(self.messages, mcp.available_tools, use_tools=False)
+            
             return final_response.content
-        await mcp.cleanup()
+        
         # 💡 Step 8: No tool used
         return ai_message.content
     
@@ -157,7 +165,6 @@ async def find_best_server_for_query(query: str) -> ServerMetadata:
     """Query the MCP registry and return the best matching server metadata."""
     registry_url = MCP_LOCAL_URL if RUN_LOCAL else MCP_REGISTRY_URL
     search_url = f"{registry_url}/search_tools"
-
     async with httpx.AsyncClient(timeout=5.0) as client:
         resp = await client.post(search_url, json={"query": query})
         resp.raise_for_status()
@@ -167,18 +174,15 @@ async def find_best_server_for_query(query: str) -> ServerMetadata:
             raise ValueError("No matching MCP servers found for query")
 
         best_match = matches[0]
-        
-        # Query the registry for full server metadata
-        full_metadata_url = f"{registry_url}/get_server?id={best_match['server_id']}"
-        resp = await client.get(full_metadata_url)
-        resp.raise_for_status()
-        server_dict = resp.json()
 
-        return ServerMetadata.model_validate(server_dict)
+        return ServerMetadata.model_validate(best_match)
     
 async def main():
     chat = ChatSession(OPENAI_API_KEY)
-    await chat.chat_loop()
+    try:
+        await chat.chat_loop()
+    finally:
+        await chat.close_all()
 
 
 if __name__ == "__main__":
