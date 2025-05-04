@@ -5,3 +5,5 @@ uvicorn
 httpx
 mcp
 mcp[cli]
+openai
+chromadb
