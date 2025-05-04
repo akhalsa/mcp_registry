@@ -55,7 +55,7 @@ class McpRegistryStack(Stack):
                 environment={
                     "DYNAMODB_TABLE_NAME": servers_table.table_name,
                     "AWS_REGION": Stack.of(self).region,
-                    "USE_DDB_LOCAL": "False"
+                    "RUN_LOCAL": "False"
                 },
                 log_driver=ecs.LogDrivers.aws_logs(
                     stream_prefix="McpRegistry",

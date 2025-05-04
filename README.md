@@ -63,4 +63,6 @@ Enjoy!
 runs locally to call remote mcp server
 cd project root
 docker build -t mcp-client -f examples/client/Dockerfile .
-docker run -p 8000:80 mcp-example-client
+docker run --rm -it mcp-client
+
+
