@@ -1,0 +1,8 @@
+httpx
+openai
+python-dotenv
+langchain
+langgraph
+langchain-openai
+mcp
+

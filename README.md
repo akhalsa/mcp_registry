@@ -56,3 +56,28 @@ command.
  * `cdk docs`        open CDK documentation
 
 Enjoy!
+
+
+
+# Running Example Client
+runs locally to call remote mcp server
+cd project root
+docker build -t mcp-client -f examples/client/Dockerfile .
+docker run --rm -it -e RUN_LOCAL=True mcp-client
+docker run --rm -it -e RUN_LOCAL=False mcp-client
+
+
+docker build -t mcp-registry-test -f code/Dockerfile . 
+docker run -p 8000:80  -e RUN_LOCAL=True --rm -it mcp-registry-test 
+
+docker build -t mcp-example-server -f examples/server/Dockerfile .     
+docker run -p 8000:80 --rm -it mcp-example-server 
+
+curl -X POST http://localhost:8000/register_server \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Example Calculator MCP Server",
+    "description": "MCP server with some math tools (arithmetic mostly)",
+    "tags": ["sum", "math", "test"],
+    "url": "http://Exampl-Examp-GTQEZ6l1f3w0-988708398.us-east-2.elb.amazonaws.com"
+  }'

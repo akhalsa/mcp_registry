@@ -1,0 +1,4 @@
+fastapi
+uvicorn
+mcp
+mcp[cli]

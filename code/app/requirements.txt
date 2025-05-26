@@ -1,0 +1,9 @@
+boto3
+fastapi
+pydantic
+uvicorn
+httpx
+mcp
+mcp[cli]
+openai
+chromadb
